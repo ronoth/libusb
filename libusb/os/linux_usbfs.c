@@ -1458,11 +1458,51 @@ out:
 	return r;
 }
 
+// static int op_open(struct libusb_device_handle *handle)
+// {
+// 	int fd, r;
+
+// 	fd = _get_usbfs_fd(handle->dev, O_RDWR, 0);
+// 	if (fd < 0) {
+// 		if (fd == LIBUSB_ERROR_NO_DEVICE) {
+// 			/* device will still be marked as attached if hotplug monitor thread
+// 			 * hasn't processed remove event yet */
+// 			usbi_mutex_static_lock(&linux_hotplug_lock);
+// 			if (handle->dev->attached) {
+// 				usbi_dbg("open failed with no device, but device still attached");
+// 				linux_device_disconnected(handle->dev->bus_number,
+// 						handle->dev->device_address);
+// 			}
+// 			usbi_mutex_static_unlock(&linux_hotplug_lock);
+// 		}
+// 		return fd;
+// 	}
+
+// 	r = initialize_handle(handle, fd);
+// 	if (r < 0)
+// 		close(fd);
+
+// 	return r;
+// }
+
+static int op_open_fd(struct libusb_device_handle *handle, int fd)
+{
+	int r;
+	struct linux_device_handle_priv *hpriv = _device_handle_priv(handle);
+	hpriv->fd = fd;
+
+	r = initialize_handle(handle, fd);
+	if (r < 0)
+		close(fd);
+
+	return r;
+}
+
+ 
 static int op_open(struct libusb_device_handle *handle)
 {
-	int fd, r;
+	int fd = _get_usbfs_fd(handle->dev, O_RDWR, 0);
 
-	fd = _get_usbfs_fd(handle->dev, O_RDWR, 0);
 	if (fd < 0) {
 		if (fd == LIBUSB_ERROR_NO_DEVICE) {
 			/* device will still be marked as attached if hotplug monitor thread
@@ -1478,11 +1518,7 @@ static int op_open(struct libusb_device_handle *handle)
 		return fd;
 	}
 
-	r = initialize_handle(handle, fd);
-	if (r < 0)
-		close(fd);
-
-	return r;
+	return op_open_fd(handle, fd);
 }
 
 static void op_close(struct libusb_device_handle *dev_handle)
@@ -2856,6 +2892,7 @@ const struct usbi_os_backend usbi_backend = {
 
 	.wrap_sys_device = op_wrap_sys_device,
 	.open = op_open,
+	.open_fd = op_open_fd,
 	.close = op_close,
 	.get_configuration = op_get_configuration,
 	.set_configuration = op_set_configuration,
